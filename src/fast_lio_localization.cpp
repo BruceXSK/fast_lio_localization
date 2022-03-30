@@ -2,6 +2,8 @@
 // Created by bruce on 2022/3/29.
 //
 
+#include <chrono>
+
 #include <ros/ros.h>
 #include <tf/tf.h>
 #include <tf_conversions/tf_eigen.h>
@@ -126,6 +128,7 @@ private:
 
     void syncCallback(const sensor_msgs::PointCloud2::ConstPtr &pcMsg, const nav_msgs::Odometry::ConstPtr &odomMsg)
     {
+        static chrono::steady_clock::time_point t0, t1, t2, t3, t4, t5;
         tf::poseMsgToTF(odomMsg->pose.pose, _baseOdom);
         static tf::Pose lastNDTPose = _baseOdom;
 
@@ -134,8 +137,13 @@ private:
         if (hypot(T.getOrigin().x(), T.getOrigin().y()) > _cfg.ndt.threshShift or
             tf::getYaw(T.getRotation()) > _cfg.ndt.threshRot)
         {
+            if (_cfg.ndt.debug) t0 = chrono::steady_clock::now();
+
             Cloud::Ptr tmpCloudPtr(new Cloud);
             pcl::fromROSMsg(*pcMsg, *tmpCloudPtr);
+
+            if (_cfg.ndt.debug) t1 = chrono::steady_clock::now();
+
             Cloud::Ptr scanCloudPtr(new Cloud);
             for (const auto &p: *tmpCloudPtr)
             {
@@ -143,24 +151,40 @@ private:
                 if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
                     scanCloudPtr->push_back(p);
             }
-            _ndt.setInputSource(scanCloudPtr);
 
+            if (_cfg.ndt.debug) t2 = chrono::steady_clock::now();
+
+            _ndt.setInputSource(scanCloudPtr);
             auto baseMap = _odomMap * _baseOdom;
             Eigen::Affine3d baseMapMat;
             tf::poseTFToEigen(baseMap, baseMapMat);
 
+            if (_cfg.ndt.debug) t3 = chrono::steady_clock::now();
+
             Cloud::Ptr outputCloudPtr(new Cloud);
             _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+
+            if (_cfg.ndt.debug) t4 = chrono::steady_clock::now();
+
             auto tNDT = _ndt.getFinalTransformation();
             tf::Transform baseMapNDT;
             tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
-
-            // _odomMap = baseMapNDT.inverseTimes(_baseOdom);
             _odomMap = _baseOdom.inverseTimes(baseMapNDT);
             lastNDTPose = _baseOdom;
-            ROS_INFO("NDT relocalized");
-        }
 
+            if (_cfg.ndt.debug) t5 = chrono::steady_clock::now();
+
+            if (_cfg.ndt.debug)
+                printf("Total: %ldms, CvtCloud: %ldms, Scan: %ldms, Guess: %ldms, Align: %ldms, TF: %ldms\n",
+                       chrono::duration_cast<chrono::milliseconds>(t5 - t0).count(),
+                       chrono::duration_cast<chrono::milliseconds>(t1 - t0).count(),
+                       chrono::duration_cast<chrono::milliseconds>(t2 - t1).count(),
+                       chrono::duration_cast<chrono::milliseconds>(t3 - t2).count(),
+                       chrono::duration_cast<chrono::milliseconds>(t4 - t3).count(),
+                       chrono::duration_cast<chrono::milliseconds>(t5 - t4).count()
+                );
+            ROS_INFO("NDT Relocated");
+        }
         publishTF();
     }
 
