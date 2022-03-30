@@ -112,9 +112,7 @@ private:
     {
         ROS_INFO("Get map");
         pcl::fromROSMsg<pcl::PointXYZI>(*msg, *_mapPtr);
-        _voxelGridFilter.setInputCloud(_mapPtr);
-        _voxelGridFilter.filter(*_mapFilteredPtr);
-        _ndt.setInputTarget(_mapFilteredPtr);
+        _ndt.setInputTarget(_mapPtr);
     }
 
     void initPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
@@ -139,9 +137,11 @@ private:
         {
             Cloud::Ptr tmpCloudPtr(new Cloud);
             pcl::fromROSMsg(*pcMsg, *tmpCloudPtr);
-
+            Cloud::Ptr filteredCloudPtr(new Cloud);
+            _voxelGridFilter.setInputCloud(tmpCloudPtr);
+            _voxelGridFilter.filter(*filteredCloudPtr);
             Cloud::Ptr scanCloudPtr(new Cloud);
-            for (const auto &p: *tmpCloudPtr)
+            for (const auto &p: *filteredCloudPtr)
             {
                 auto r = hypot(p.x, p.y);
                 if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
