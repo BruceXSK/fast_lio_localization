@@ -10,6 +10,7 @@
     <node name="fast_lio_localization" pkg="fast_lio_localization" type="fast_lio_localization" output="screen">
         <param name="ndt/debug" value="true"/>
         <param name="ndt/voxel_leaf_size" value="0.1"/>
+        <param name="ndt/min_scan_range" value="1.0"/>
     </node>
 
     <node name="rviz_localization" pkg="rviz" type="rviz" args="-d $(find fast_lio_localization)/config/localization.rviz"/>

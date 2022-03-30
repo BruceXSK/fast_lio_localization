@@ -123,8 +123,6 @@ private:
         auto &p = msg->pose.pose.position;
         tf::Pose baseMap(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
         _odomMap = baseMap * _baseOdom.inverse();
-        
-
         ROS_INFO("Initial pose set");
     }
 
