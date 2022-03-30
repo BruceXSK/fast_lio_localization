@@ -4,7 +4,7 @@
           args="0 0 0 0 0 0 body velodyne 100"/>
 
     <node name="map_loader" pkg="fast_lio_localization" type="map_loader" output="screen">
-        <param name="map_path" value="$(find fast_lio_localization)/data/IB-4L.pcd"/>
+        <param name="map_path" value="$(find fast_lio_localization)/data/410.pcd"/>
     </node>
 
     <node name="fast_lio_localization" pkg="fast_lio_localization" type="fast_lio_localization" output="screen">

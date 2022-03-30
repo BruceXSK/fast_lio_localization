@@ -16,6 +16,7 @@ FIND_PACKAGE(
         sensor_msgs
         pcl_conversions
         message_filters
+        tf_conversions
 )
 
 IF (OPENMP_FOUND)

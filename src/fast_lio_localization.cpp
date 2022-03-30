@@ -4,6 +4,7 @@
 
 #include <ros/ros.h>
 #include <tf/tf.h>
+#include <tf_conversions/tf_eigen.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -37,6 +38,8 @@ public:
         double stepSize = 0.1;
         double threshShift = 2;
         double threshRot = M_PI / 12;
+        double minScanRange = 1.0;
+        double maxScanRange = 100;
     } ndt;
 
     explicit Config(ros::NodeHandle &nh) : _nh(nh)
@@ -79,6 +82,8 @@ public:
         _ndt.setStepSize(_cfg.ndt.stepSize);
         _ndt.setResolution(_cfg.ndt.resolution);
         _ndt.setMaximumIterations(_cfg.ndt.maximumIterations);
+
+        _odomMap.setIdentity();
     }
 
 private:
@@ -95,7 +100,7 @@ private:
     pcl::VoxelGrid<pcl::PointXYZI> _voxelGridFilter;
     Config _cfg;
     Cloud::Ptr _mapPtr, _mapFilteredPtr;
-    tf::Pose _odomPose;
+    tf::Pose _baseOdom, _odomMap;
 
     void mapCallback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     {
@@ -110,41 +115,62 @@ private:
     {
         auto &q = msg->pose.pose.orientation;
         auto &p = msg->pose.pose.position;
-        tf::Pose base2map(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
-        auto t = base2map.inverseTimes(_odomPose);
+        tf::Pose baseMap(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
+        _odomMap = baseMap.inverseTimes(_baseOdom);
 
-        geometry_msgs::TransformStamped tfMsg;
-        tfMsg.header.seq = msg->header.seq;
-        tfMsg.header.stamp = msg->header.stamp;
-        tfMsg.header.frame_id = msg->header.frame_id;
-        tfMsg.child_frame_id = _cfg.odomFrame;
-        tfMsg.transform.translation.x = t.getOrigin().x();
-        tfMsg.transform.translation.y = t.getOrigin().y();
-        tfMsg.transform.translation.z = t.getOrigin().z();
-        tfMsg.transform.rotation.x = t.getRotation().x();
-        tfMsg.transform.rotation.y = t.getRotation().y();
-        tfMsg.transform.rotation.z = t.getRotation().z();
-        tfMsg.transform.rotation.w = t.getRotation().w();
-
-        _br.sendTransform(tfMsg);
         ROS_INFO("Initial pose set");
     }
 
-    void syncCallback(const sensor_msgs::PointCloud2::ConstPtr &pc, const nav_msgs::Odometry::ConstPtr &odom)
+    void syncCallback(const sensor_msgs::PointCloud2::ConstPtr &pcMsg, const nav_msgs::Odometry::ConstPtr &odomMsg)
     {
-        tf::poseMsgToTF(odom->pose.pose, _odomPose);
-        static tf::Pose lastNDTPose = _odomPose;
+        tf::poseMsgToTF(odomMsg->pose.pose, _baseOdom);
+        static tf::Pose lastNDTPose = _baseOdom;
 
-        tf::Pose currPose;
-        tf::poseMsgToTF(odom->pose.pose, currPose);
-        auto T = lastNDTPose.inverseTimes(currPose);
+        auto T = lastNDTPose.inverseTimes(_baseOdom);
 
         if (hypot(T.getOrigin().x(), T.getOrigin().y()) > _cfg.ndt.threshShift or
             tf::getYaw(T.getRotation()) > _cfg.ndt.threshRot)
         {
-            ROS_INFO("In");
-        }
+            Cloud::Ptr tmpCloudPtr(new Cloud);
+            pcl::fromROSMsg(*pcMsg, *tmpCloudPtr);
+            Cloud::Ptr scanCloudPtr(new Cloud);
+            for (const auto &p: *tmpCloudPtr)
+            {
+                auto r = hypot(p.x, p.y);
+                if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
+                    scanCloudPtr->emplace_back(p);
+            }
+            _ndt.setInputSource(scanCloudPtr);
 
+            auto baseMap = _odomMap * _baseOdom;
+            Eigen::Affine3d baseMapMat;
+            tf::poseTFToEigen(baseMap, baseMapMat);
+
+            Cloud::Ptr outputCloudPtr(new Cloud);
+            _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+            auto tNDT = _ndt.getFinalTransformation();
+            tf::Transform baseMapNDT;
+            tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
+
+            _odomMap = baseMapNDT.inverseTimes(_baseOdom);
+        }
+    }
+
+    void publishTF()
+    {
+        geometry_msgs::TransformStamped tfMsg;
+        tfMsg.header.stamp = ros::Time::now();
+        tfMsg.header.frame_id = "map";
+        tfMsg.child_frame_id = _cfg.odomFrame;
+        tfMsg.transform.translation.x = _odomMap.getOrigin().x();
+        tfMsg.transform.translation.y = _odomMap.getOrigin().y();
+        tfMsg.transform.translation.z = _odomMap.getOrigin().z();
+        tfMsg.transform.rotation.x = _odomMap.getRotation().x();
+        tfMsg.transform.rotation.y = _odomMap.getRotation().y();
+        tfMsg.transform.rotation.z = _odomMap.getRotation().z();
+        tfMsg.transform.rotation.w = _odomMap.getRotation().w();
+
+        _br.sendTransform(tfMsg);
     }
 };
 
