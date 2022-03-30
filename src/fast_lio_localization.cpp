@@ -30,9 +30,10 @@ public:
     string odomFrame = "camera_init";
     struct
     {
+        bool debug = false;
         int numThreads = 4;
         int maximumIterations = 20;
-        float voxelLeafSize = 2;
+        float voxelLeafSize = 0.1;
         float resolution = 1.0;
         double transformationEpsilon = 0.01;
         double stepSize = 0.1;
@@ -46,6 +47,7 @@ public:
     {
         _nh.getParam("odom_frame", odomFrame);
 
+        _nh.getParam("ndt/debug", ndt.debug);
         _nh.getParam("ndt/num_threads", ndt.numThreads);
         _nh.getParam("ndt/maximum_iterations", ndt.maximumIterations);
         _nh.getParam("ndt/voxel_leaf_size", ndt.voxelLeafSize);
@@ -116,7 +118,8 @@ private:
         auto &q = msg->pose.pose.orientation;
         auto &p = msg->pose.pose.position;
         tf::Pose baseMap(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
-        _odomMap = baseMap.inverseTimes(_baseOdom);
+        // _odomMap = baseMap.inverseTimes(_baseOdom);
+        _odomMap = _baseOdom.inverseTimes(baseMap);
 
         ROS_INFO("Initial pose set");
     }
@@ -138,7 +141,7 @@ private:
             {
                 auto r = hypot(p.x, p.y);
                 if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
-                    scanCloudPtr->emplace_back(p);
+                    scanCloudPtr->push_back(p);
             }
             _ndt.setInputSource(scanCloudPtr);
 
@@ -152,8 +155,13 @@ private:
             tf::Transform baseMapNDT;
             tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
 
-            _odomMap = baseMapNDT.inverseTimes(_baseOdom);
+            // _odomMap = baseMapNDT.inverseTimes(_baseOdom);
+            _odomMap = _baseOdom.inverseTimes(baseMapNDT);
+            lastNDTPose = _baseOdom;
+            ROS_INFO("NDT relocalized");
         }
+
+        publishTF();
     }
 
     void publishTF()

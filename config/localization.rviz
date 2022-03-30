@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /TF1
       Splitter Ratio: 0.5
     Tree Height: 549
   - Class: rviz/Selection
@@ -80,14 +81,82 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
-    - Alpha: 1
-      Class: rviz/Axes
+    - Class: rviz/Axes
       Enabled: true
       Length: 1
       Name: Axes
       Radius: 0.20000000298023224
-      Reference Frame: <Fixed Frame>
-      Show Trail: false
+      Reference Frame: velodyne
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /velodyne_points
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        base_footprint:
+          Value: false
+        base_link:
+          Value: false
+        body:
+          Value: false
+        camera_init:
+          Value: true
+        front_left_wheel_link:
+          Value: false
+        front_right_wheel_link:
+          Value: false
+        imu_link:
+          Value: false
+        inertial_link:
+          Value: false
+        map:
+          Value: true
+        rear_left_wheel_link:
+          Value: false
+        rear_right_wheel_link:
+          Value: false
+        velodyne:
+          Value: true
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        map:
+          camera_init:
+            body:
+              velodyne:
+                {}
+      Update Interval: 0
       Value: true
   Enabled: true
   Global Options:
@@ -117,25 +186,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 30.81661605834961
+      Distance: 7.005212783813477
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.5784714221954346
-        Y: 4.031703948974609
+        X: -1.0529977083206177
+        Y: -0.6556926965713501
         Z: 0
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 1.4997963905334473
       Target Frame: <Fixed Frame>
-      Yaw: 1.5453988313674927
+      Value: XYOrbit (rviz)
+      Yaw: 3.1453983783721924
     Saved: ~
 Window Geometry:
   Displays:
@@ -154,4 +223,4 @@ Window Geometry:
     collapsed: false
   Width: 1267
   X: 103
-  Y: 94
+  Y: 27
