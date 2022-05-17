@@ -20,6 +20,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <Eigen/Eigen>
 #include "pclomp/ndt_omp.h"
+#include "ndt_gpu/NormalDistributionsTransform.h"
 
 using namespace std;
 
@@ -32,6 +33,7 @@ public:
     string odomFrame = "camera_init";
     struct
     {
+        string method = "omp";  // omp gpu
         bool debug = false;
         int numThreads = 4;
         int maximumIterations = 20;
@@ -49,6 +51,7 @@ public:
     {
         _nh.getParam("odom_frame", odomFrame);
 
+        _nh.getParam("ndt/method", ndt.method);
         _nh.getParam("ndt/debug", ndt.debug);
         _nh.getParam("ndt/num_threads", ndt.numThreads);
         _nh.getParam("ndt/maximum_iterations", ndt.maximumIterations);
@@ -83,11 +86,27 @@ public:
         _syncPtr->registerCallback(boost::bind(&Localizer::syncCallback, this, _1, _2));
 
         _voxelGridFilter.setLeafSize(_cfg.ndt.voxelLeafSize, _cfg.ndt.voxelLeafSize, _cfg.ndt.voxelLeafSize);
-        _ndt.setNumThreads(_cfg.ndt.numThreads);
-        _ndt.setTransformationEpsilon(_cfg.ndt.transformationEpsilon);
-        _ndt.setStepSize(_cfg.ndt.stepSize);
-        _ndt.setResolution(_cfg.ndt.resolution);
-        _ndt.setMaximumIterations(_cfg.ndt.maximumIterations);
+
+        if (_cfg.ndt.method == "omp")
+        {
+            _ndt.setNumThreads(_cfg.ndt.numThreads);
+            _ndt.setTransformationEpsilon(_cfg.ndt.transformationEpsilon);
+            _ndt.setStepSize(_cfg.ndt.stepSize);
+            _ndt.setResolution(_cfg.ndt.resolution);
+            _ndt.setMaximumIterations(_cfg.ndt.maximumIterations);
+        }
+        else if (_cfg.ndt.method == "gpu")
+        {
+            _ndt_gpu.setResolution(_cfg.ndt.resolution);
+            _ndt_gpu.setStepSize(_cfg.ndt.stepSize);
+            _ndt_gpu.setTransformationEpsilon(_cfg.ndt.transformationEpsilon);
+            _ndt_gpu.setMaximumIterations(_cfg.ndt.maximumIterations);
+        }
+        else
+        {
+            ROS_ERROR("Invalid NDT method %s. Current only \"omp\" and \"gpu\" are supported", _cfg.ndt.method.c_str());
+            ros::shutdown();
+        }
 
         _odomMap.setIdentity();
     }
@@ -103,6 +122,7 @@ private:
     message_filters::Synchronizer<ExactSyncPolicy> *_syncPtr;
 
     NDT _ndt;
+    ndtgpu::GNormalDistributionsTransform _ndt_gpu;
     pcl::VoxelGrid<pcl::PointXYZI> _voxelGridFilter;
     Config _cfg;
     Cloud::Ptr _mapPtr, _mapFilteredPtr;
@@ -112,7 +132,11 @@ private:
     {
         ROS_INFO("Get map");
         pcl::fromROSMsg<pcl::PointXYZI>(*msg, *_mapPtr);
-        _ndt.setInputTarget(_mapPtr);
+
+        if (_cfg.ndt.method == "omp")
+            _ndt.setInputTarget(_mapPtr);
+        else if (_cfg.ndt.method == "gpu")
+            _ndt_gpu.setInputTarget(_mapPtr);
     }
 
     void initPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
@@ -148,23 +172,35 @@ private:
                     scanCloudPtr->push_back(p);
             }
 
-            _ndt.setInputSource(scanCloudPtr);
             auto baseMap = _odomMap * _baseOdom;
             Eigen::Affine3d baseMapMat;
             tf::poseTFToEigen(baseMap, baseMapMat);
 
-            Cloud::Ptr outputCloudPtr(new Cloud);
+            Eigen::Matrix4f tNDT;
+
             if (_cfg.ndt.debug) t0 = chrono::steady_clock::now();
-            _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+            if (_cfg.ndt.method == "omp")
+            {
+                Cloud::Ptr outputCloudPtr(new Cloud);
+                _ndt.setInputSource(scanCloudPtr);
+                _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+                tNDT = _ndt.getFinalTransformation();
+            }
+            else if (_cfg.ndt.method == "gpu")
+            {
+                _ndt_gpu.setInputSource(scanCloudPtr);
+                _ndt_gpu.align(baseMapMat.matrix().cast<float>());
+                tNDT = _ndt_gpu.getFinalTransformation();
+            }
             if (_cfg.ndt.debug) t1 = chrono::steady_clock::now();
 
-            auto tNDT = _ndt.getFinalTransformation();
             tf::Transform baseMapNDT;
             tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
             _odomMap = baseMapNDT * _baseOdom.inverse();
             lastNDTPose = _baseOdom;
 
-            if (_cfg.ndt.debug) ROS_INFO("NDT: %ldms", chrono::duration_cast<chrono::milliseconds>(t1 - t0).count());
+            if (_cfg.ndt.debug)
+                ROS_INFO("NDT: %ldms", chrono::duration_cast<chrono::milliseconds>(t1 - t0).count());
             ROS_INFO("NDT Relocated");
         }
         publishTF();
