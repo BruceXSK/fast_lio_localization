@@ -4,6 +4,7 @@ PROJECT(fast_lio_localization)
 SET(CMAKE_CXX_STANDARD 14)
 
 FIND_PACKAGE(PCL REQUIRED)
+FIND_PACKAGE(CUDA)
 FIND_PACKAGE(
         catkin REQUIRED
         roscpp
@@ -30,6 +31,7 @@ INCLUDE_DIRECTORIES(
         include
         ${catkin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
+        ${CUDA_INCLUDE_DIRS}
         3rdparty/ndt_gpu/include
         3rdparty/pclomp/include
 )
