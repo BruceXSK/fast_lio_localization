@@ -6,7 +6,7 @@
 #include "MatrixDevice.h"
 #include <math.h>
 
-namespace gpu {
+namespace ndtgpu {
 
 class SymmetricEigensolver3x3 {
 public:

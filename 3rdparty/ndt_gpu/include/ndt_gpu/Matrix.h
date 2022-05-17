@@ -6,7 +6,7 @@
 #include "common.h"
 #include <float.h>
 
-namespace gpu {
+namespace ndtgpu {
 
 class Matrix {
 public:

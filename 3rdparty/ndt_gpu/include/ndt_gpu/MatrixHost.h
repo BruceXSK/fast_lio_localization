@@ -4,7 +4,7 @@
 #include "Matrix.h"
 #include "MatrixDevice.h"
 
-namespace gpu {
+namespace ndtgpu {
 class MatrixHost : public Matrix {
 public:
   MatrixHost();

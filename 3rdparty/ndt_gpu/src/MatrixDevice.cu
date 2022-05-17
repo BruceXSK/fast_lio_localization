@@ -1,7 +1,7 @@
 #include "ndt_gpu/MatrixDevice.h"
 #include "ndt_gpu/debug.h"
 
-namespace gpu {
+namespace ndtgpu {
 MatrixDevice::MatrixDevice(int rows, int cols) {
 	rows_ = rows;
 	cols_ = cols;

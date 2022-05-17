@@ -10,7 +10,7 @@
 #include <float.h>
 #include <vector>
 
-namespace gpu {
+namespace ndtgpu {
 class GVoxelGrid {
 public:
   GVoxelGrid();

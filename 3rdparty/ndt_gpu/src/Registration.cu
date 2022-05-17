@@ -2,7 +2,7 @@
 #include "ndt_gpu/debug.h"
 #include <iostream>
 
-namespace gpu {
+namespace ndtgpu {
 
 GRegistration::GRegistration()
 {

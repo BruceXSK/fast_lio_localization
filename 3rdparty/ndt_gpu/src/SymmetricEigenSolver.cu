@@ -1,7 +1,7 @@
 #include "ndt_gpu/SymmetricEigenSolver.h"
 #include "ndt_gpu/debug.h"
 
-namespace gpu {
+namespace ndtgpu {
 
 SymmetricEigensolver3x3::SymmetricEigensolver3x3(int offset)
 {

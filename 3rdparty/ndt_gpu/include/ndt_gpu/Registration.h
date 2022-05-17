@@ -12,7 +12,7 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-namespace gpu {
+namespace ndtgpu {
 class GRegistration {
 public:
   GRegistration();

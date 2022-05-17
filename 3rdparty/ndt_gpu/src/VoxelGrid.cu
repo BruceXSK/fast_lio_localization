@@ -18,7 +18,7 @@
 
 #include "ndt_gpu/SymmetricEigenSolver.h"
 
-namespace gpu {
+namespace ndtgpu {
 
 GVoxelGrid::GVoxelGrid():
 	x_(NULL),

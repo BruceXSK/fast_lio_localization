@@ -3,7 +3,7 @@
 
 #include "Matrix.h"
 
-namespace gpu {
+namespace ndtgpu {
 class MatrixDevice : public Matrix {
 public:
   CUDAH MatrixDevice();

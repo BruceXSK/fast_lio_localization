@@ -4,7 +4,7 @@
 #include <iostream>
 #include <pcl/common/transforms.h>
 
-namespace gpu {
+namespace ndtgpu {
 
 GNormalDistributionsTransform::GNormalDistributionsTransform()
 {

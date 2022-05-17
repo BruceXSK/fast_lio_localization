@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-namespace gpu {
+namespace ndtgpu {
 
 MatrixHost::MatrixHost()
 {

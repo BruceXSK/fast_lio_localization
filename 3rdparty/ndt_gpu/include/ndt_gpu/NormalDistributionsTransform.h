@@ -8,7 +8,7 @@
 #include "VoxelGrid.h"
 #include "Eigen/Geometry"
 
-namespace gpu {
+namespace ndtgpu {
 class GNormalDistributionsTransform: public GRegistration {
 public:
   GNormalDistributionsTransform();
