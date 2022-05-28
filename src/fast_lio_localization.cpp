@@ -14,6 +14,7 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -77,8 +78,8 @@ public:
 
         _pcSubPtr = new message_filters::Subscriber<sensor_msgs::PointCloud2>(nh, "/velodyne_points", 1);
         _odomSubPtr = new message_filters::Subscriber<nav_msgs::Odometry>(nh, "/odom_lio", 1);
-        _syncPtr = new message_filters::Synchronizer<ExactSyncPolicy>(
-                ExactSyncPolicy(10), *_pcSubPtr, *_odomSubPtr
+        _syncPtr = new message_filters::Synchronizer<syncPolicy>(
+                syncPolicy(10), *_pcSubPtr, *_odomSubPtr
         );
         _syncPtr->registerCallback(boost::bind(&Localizer::syncCallback, this, _1, _2));
 
@@ -99,8 +100,9 @@ private:
     tf2_ros::TransformBroadcaster _br;
     message_filters::Subscriber<sensor_msgs::PointCloud2> *_pcSubPtr;
     message_filters::Subscriber<nav_msgs::Odometry> *_odomSubPtr;
-    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> ExactSyncPolicy;
-    message_filters::Synchronizer<ExactSyncPolicy> *_syncPtr;
+//    typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> syncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> syncPolicy;
+    message_filters::Synchronizer<syncPolicy> *_syncPtr;
 
     NDT _ndt;
     pcl::VoxelGrid<pcl::PointXYZI> _voxelGridFilter;
