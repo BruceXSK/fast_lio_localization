@@ -82,7 +82,6 @@ public:
                 syncPolicy(10), *_pcSubPtr, *_odomSubPtr
         );
         _syncPtr->registerCallback(boost::bind(&Localizer::syncCallback, this, _1, _2));
-        _syncPtr->setMaxIntervalDuration(ros::Duration(0.01));
 
         _voxelGridFilter.setLeafSize(_cfg.ndt.voxelLeafSize, _cfg.ndt.voxelLeafSize, _cfg.ndt.voxelLeafSize);
         _ndt.setNumThreads(_cfg.ndt.numThreads);
