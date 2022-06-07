@@ -74,7 +74,7 @@ public:
             _nh(nh), _cfg(nh), _mapPtr(new Cloud), _mapFilteredPtr(new Cloud)
     {
         _mapSub = _nh.subscribe("/map_cloud", 10, &Localizer::mapCallback, this);
-        _initPoseSub = _nh.subscribe("/initialpose", 10, &Localizer::initPoseCallback, this);
+        _initPoseSub = _nh.subscribe("/initialpose", 10, &Localizer::initPoseWithNDTCallback, this);
 
         _pcSubPtr = new message_filters::Subscriber<sensor_msgs::PointCloud2>(nh, "/velodyne_points", 1);
         _odomSubPtr = new message_filters::Subscriber<nav_msgs::Odometry>(nh, "/odom_lio", 1);
@@ -109,6 +109,7 @@ private:
     Config _cfg;
     Cloud::Ptr _mapPtr, _mapFilteredPtr;
     tf::Pose _baseOdom, _odomMap;
+    sensor_msgs::PointCloud2::ConstPtr _pcPtr = nullptr;
 
     void mapCallback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     {
@@ -126,8 +127,48 @@ private:
         ROS_INFO("Initial pose set");
     }
 
+    void initPoseWithNDTCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
+    {
+        if (_pcPtr == nullptr)
+        {
+            ROS_WARN("No point cloud");
+            return;
+        }
+        ROS_INFO("Initial pose set");
+        auto &q = msg->pose.pose.orientation;
+        auto &p = msg->pose.pose.position;
+        tf::Pose baseMap(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
+
+        Cloud::Ptr tmpCloudPtr(new Cloud);
+        pcl::fromROSMsg(*_pcPtr, *tmpCloudPtr);
+        Cloud::Ptr filteredCloudPtr(new Cloud);
+        _voxelGridFilter.setInputCloud(tmpCloudPtr);
+        _voxelGridFilter.filter(*filteredCloudPtr);
+        Cloud::Ptr scanCloudPtr(new Cloud);
+        for (const auto &point: *filteredCloudPtr)
+        {
+            auto r = hypot(point.x, point.y);
+            if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
+                scanCloudPtr->push_back(point);
+        }
+
+        _ndt.setInputSource(scanCloudPtr);
+        Eigen::Affine3d baseMapMat;
+        tf::poseTFToEigen(baseMap, baseMapMat);
+        Cloud::Ptr outputCloudPtr(new Cloud);
+        _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+        auto tNDT = _ndt.getFinalTransformation();
+        tf::Transform baseMapNDT;
+        tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
+        _odomMap = baseMapNDT * _baseOdom.inverse();
+        ROS_INFO("NDT Relocated");
+
+        publishTF();
+    }
+
     void syncCallback(const sensor_msgs::PointCloud2::ConstPtr &pcMsg, const nav_msgs::Odometry::ConstPtr &odomMsg)
     {
+        _pcPtr = pcMsg;
         static chrono::steady_clock::time_point t0, t1;
         tf::poseMsgToTF(odomMsg->pose.pose, _baseOdom);
         static tf::Pose lastNDTPose = _baseOdom;
