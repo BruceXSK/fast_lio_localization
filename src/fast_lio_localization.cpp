@@ -139,30 +139,7 @@ private:
         auto &p = msg->pose.pose.position;
         tf::Pose baseMap(tf::Quaternion(q.x, q.y, q.z, q.w), tf::Vector3(p.x, p.y, p.z));
 
-        Cloud::Ptr tmpCloudPtr(new Cloud);
-        pcl::fromROSMsg(*_pcPtr, *tmpCloudPtr);
-        Cloud::Ptr filteredCloudPtr(new Cloud);
-        _voxelGridFilter.setInputCloud(tmpCloudPtr);
-        _voxelGridFilter.filter(*filteredCloudPtr);
-        Cloud::Ptr scanCloudPtr(new Cloud);
-        for (const auto &point: *filteredCloudPtr)
-        {
-            auto r = hypot(point.x, point.y);
-            if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
-                scanCloudPtr->push_back(point);
-        }
-
-        _ndt.setInputSource(scanCloudPtr);
-        Eigen::Affine3d baseMapMat;
-        tf::poseTFToEigen(baseMap, baseMapMat);
-        Cloud::Ptr outputCloudPtr(new Cloud);
-        _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
-        auto tNDT = _ndt.getFinalTransformation();
-        tf::Transform baseMapNDT;
-        tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
-        _odomMap = baseMapNDT * _baseOdom.inverse();
-        ROS_INFO("NDT Relocated");
-
+        match(_pcPtr, baseMap);
         publishTF();
     }
 
@@ -178,39 +155,50 @@ private:
         if (hypot(T.getOrigin().x(), T.getOrigin().y()) > _cfg.ndt.threshShift or
             tf::getYaw(T.getRotation()) > _cfg.ndt.threshRot)
         {
-            Cloud::Ptr tmpCloudPtr(new Cloud);
-            pcl::fromROSMsg(*pcMsg, *tmpCloudPtr);
-            Cloud::Ptr filteredCloudPtr(new Cloud);
-            _voxelGridFilter.setInputCloud(tmpCloudPtr);
-            _voxelGridFilter.filter(*filteredCloudPtr);
-            Cloud::Ptr scanCloudPtr(new Cloud);
-            for (const auto &p: *filteredCloudPtr)
-            {
-                auto r = hypot(p.x, p.y);
-                if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
-                    scanCloudPtr->push_back(p);
-            }
-
-            _ndt.setInputSource(scanCloudPtr);
-            auto baseMap = _odomMap * _baseOdom;
-            Eigen::Affine3d baseMapMat;
-            tf::poseTFToEigen(baseMap, baseMapMat);
-
-            Cloud::Ptr outputCloudPtr(new Cloud);
-            if (_cfg.ndt.debug) t0 = chrono::steady_clock::now();
-            _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
-            if (_cfg.ndt.debug) t1 = chrono::steady_clock::now();
-
-            auto tNDT = _ndt.getFinalTransformation();
-            tf::Transform baseMapNDT;
-            tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
-            _odomMap = baseMapNDT * _baseOdom.inverse();
+            match(pcMsg, _odomMap * _baseOdom);
             lastNDTPose = _baseOdom;
-
-            if (_cfg.ndt.debug) ROS_INFO("NDT: %ldms", chrono::duration_cast<chrono::milliseconds>(t1 - t0).count());
-            ROS_INFO("NDT Relocated");
         }
         publishTF();
+    }
+
+    /**
+     * Matching the point cloud with map to calculate `_odomMap`.
+     *
+     * @param pcPtr The point cloud for matching.
+     * @param baseMap The guess matrix.
+     * */
+    void match(const sensor_msgs::PointCloud2::ConstPtr &pcPtr, const tf::Transform &baseMap)
+    {
+        static chrono::steady_clock::time_point t0, t1;
+
+        Cloud::Ptr tmpCloudPtr(new Cloud);
+        pcl::fromROSMsg(*pcPtr, *tmpCloudPtr);
+        Cloud::Ptr filteredCloudPtr(new Cloud);
+        _voxelGridFilter.setInputCloud(tmpCloudPtr);
+        _voxelGridFilter.filter(*filteredCloudPtr);
+        Cloud::Ptr scanCloudPtr(new Cloud);
+        for (const auto &p: *filteredCloudPtr)
+        {
+            auto r = hypot(p.x, p.y);
+            if (r > _cfg.ndt.minScanRange and r < _cfg.ndt.maxScanRange)
+                scanCloudPtr->push_back(p);
+        }
+
+        _ndt.setInputSource(scanCloudPtr);
+        Eigen::Affine3d baseMapMat;
+        tf::poseTFToEigen(baseMap, baseMapMat);
+        Cloud::Ptr outputCloudPtr(new Cloud);
+        if (_cfg.ndt.debug) t0 = chrono::steady_clock::now();
+        _ndt.align(*outputCloudPtr, baseMapMat.matrix().cast<float>());
+        if (_cfg.ndt.debug) t1 = chrono::steady_clock::now();
+
+        auto tNDT = _ndt.getFinalTransformation();
+        tf::Transform baseMapNDT;
+        tf::poseEigenToTF(Eigen::Affine3d(tNDT.cast<double>()), baseMapNDT);
+        _odomMap = baseMapNDT * _baseOdom.inverse();
+
+        if (_cfg.ndt.debug) ROS_INFO("NDT: %ldms", chrono::duration_cast<chrono::milliseconds>(t1 - t0).count());
+        ROS_INFO("NDT Relocated");
     }
 
     void publishTF()
